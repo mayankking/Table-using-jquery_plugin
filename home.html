@@ -1,0 +1,223 @@
+<html>
+<head>
+	<link type="text/css" rel="stylesheet" href="https://cdn.datatables.net/1.10.13/css/jquery.dataTables.min.css" />
+	<script type="text/javascript" src="jquery.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>
+</head>
+
+<style>
+	thead th {
+		background: rgba(40, 47, 140, 0.8);
+		color: white;
+	}
+	
+	.btn{
+		margin-left:10px;
+	}
+
+	tfoot th {
+		background: rgb(170, 176, 187);
+		color: white;
+	} 	
+	
+	tfoot input{
+		min-width:150px;
+		max-width:300px;
+	}
+	
+	body{
+		background: rgba(90,100,120,0.4);
+	}
+	
+	div.content{
+		width:70%;
+		min-width:500px;
+		text-align:center;
+		margin-left:auto;
+		margin-right:auto;
+	}
+	
+	tfoot input {
+        width: 100%;
+        padding: 3px;
+        box-sizing: border-box;
+    }
+</style>
+
+<script>
+
+
+//variable declarations
+var columnNames = [];
+var fieldNames = [];
+var myTable;
+var filterArr = [];
+
+
+
+
+jQuery.extend( jQuery.fn.dataTableExt.oSort, {
+    "non-empty-string-asc": function (str1, str2) {
+        if(str1 == "")
+            return 1;
+        if(str2 == "")
+            return -1;
+        return ((str1 < str2) ? -1 : ((str1 > str2) ? 1 : 0));
+    },
+ 
+    "non-empty-string-desc": function (str1, str2) {
+        if(str1 == "")
+            return 1;
+        if(str2 == "")
+            return -1;
+        return ((str1 < str2) ? 1 : ((str1 > str2) ? -1 : 0));
+    }
+} );
+ 
+$(document).ready(function() {
+	getJsonFromServer();//get server data
+} );
+
+
+//function to get json from server and load it as table 
+function getJsonFromServer(){
+	$.getJSON( "https://api.myjson.com/bins/1tll6", function( data ) {
+		loadJsonAsTable(data);//pass json received to be loaded as table
+	});
+}
+
+
+
+//function to load json as table
+function loadJsonAsTable(json){
+	createTableHeaderFromJson(json.fields);//first create table headers based on dynamic fields received
+	
+	var moviesArray = getDataAsArray(json.values);//get movies array from json object
+	
+	//initialize table using datatable plugin
+    myTable = $('#movies_table').DataTable( {
+        data: moviesArray,
+        columns: columnNames,"bPaginate": true
+    } );
+	
+	//when sorting is applied , function to show sort info in the top
+	$("#movies_table thead tr:eq(0)").on("click", "th", function(event){
+		fGetSortInfo();
+	});
+	
+	//now initialize footer with filter text boxes
+	intialiseFooter();
+	
+	
+	//register keyboard events for column filters
+	handleColumnFilters();
+	
+	//hide unnecessary elements - can be shown if needed
+	$("#movies_table_filter").hide();
+}
+
+
+//function to create table headers based on dynamic fields received
+function createTableHeaderFromJson(fields){
+	var htm = "<table id='movies_table' class='display' cellspacing='0'><thead><tr>";
+	var footHtm = "";
+	
+	for(var i=0;i<fields.length;i++){
+		columnNames.push({type:"non-empty-string",title:fields[i].label});//from server response , 
+		fieldNames.push(fields[i].field);
+		htm+="<th>"+fields[i].label+"</th>";
+		footHtm+="<th id='"+i+"'>"+fields[i].label+"</th>";
+	}
+	htm+="</tr></thead><tfoot><tr>"+footHtm+"</tr></tfoot></table>";		
+	
+	$("div#table_holder").html(htm);
+}
+
+
+//function to perform column based filtering
+function handleColumnFilters(){
+	myTable.columns().every( function () {
+        var that = this;
+ 
+        $( 'input', this.footer() ).on( 'keyup change', function () {
+        console.log('keypu')
+            if ( that.search() !== this.value ) {
+                that
+                    .search( this.value )
+                    .draw();
+            }
+        } );
+    } );
+}
+
+
+//function to handle server response - returns movies array
+function getDataAsArray(vals){
+	var arr = [];
+	var row = [];
+	for(var i=0;i<vals.length;i++){
+		row=[];
+		for(var j=0;j<fieldNames.length;j++){
+			if(vals[i].hasOwnProperty(fieldNames[j]) && vals[i][fieldNames[j]]!=null){
+				row.push(vals[i][fieldNames[j]])
+			} else{
+				row.push("");
+			}
+		}
+		arr.push(row);
+	}
+	
+	console.log("Final rows length is "+arr.length);
+	return arr;
+}
+
+//function to show footer filters
+function intialiseFooter(){
+	$('#movies_table tfoot th').each( function () {
+        var title = $(this).text();
+        $(this).html( '<input type="text" placeholder="Search '+title+'" />' );
+    } );
+}
+
+
+
+
+//function to retrieve sort by info
+function fGetSortInfo() {
+	var sortInfo = $("#movies_table").dataTable().fnSettings().aaSorting;
+	console.log(sortInfo);
+	showSortInfo(sortInfo);
+}
+
+
+//function to show sort by info in the top
+function showSortInfo(sortInfo){
+	if(sortInfo && sortInfo[0].length>1){
+		$("#sort_info").html(columnNames[sortInfo[0][0]].title+" , Order : "+sortInfo[0][1].toUpperCase());
+	}
+}
+
+//function to reset filters applied
+function resetFilters(){
+	$("tfoot input").val("").trigger("change");
+}
+</script>
+
+
+
+
+
+<body>
+	<div class="content">
+		<div>
+			<span>Sort By : </span> <span id="sort_info">None</span><br>
+			<button type="butotn" id="reset_btn" class="btn" onclick="resetFilters()">Reset Filters</button>
+		</div>
+		<div id="table_holder">
+			<h3 style="color: rgba(40, 47, 140, 0.8);">Loading data from server...</h3>
+		</div>
+	</div>
+</body>
+</html>
+
+
